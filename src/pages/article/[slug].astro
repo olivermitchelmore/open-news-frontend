@@ -113,9 +113,8 @@ const schema = {
             image={article.image}
             eager
             ratio="16 / 9"
-            sizes="(min-width: 1180px) 1100px, 100vw"
+            sizes="(min-width: 860px) 800px, 100vw"
             widths={[640, 960, 1280, 1600]}
-            transitionName={`media-${article.slug}`}
           />
           {(article.image.caption || article.image.credit) && (
             <figcaption>
@@ -282,7 +281,7 @@ const schema = {
   }
 
   .hero {
-    max-width: calc(70rem + var(--gutter) * 2);
+    max-width: calc(var(--measure) + var(--gutter) * 2);
     margin-top: clamp(2rem, 4vw, 3rem);
   }
 

@@ -52,7 +52,6 @@ const hasMedia = variant !== 'text';
         ratio={Astro.props.ratio ?? ratios[variant]}
         sizes={Astro.props.sizes ?? defaultSizes[variant]}
         widths={variant === 'compact' ? [160, 280] : undefined}
-        transitionName={article.image && variant !== 'compact' ? `media-${article.slug}` : undefined}
       />
     )
   }

@@ -22,7 +22,7 @@
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --container: 1320px;
-  --measure: 42rem;
+  --measure: 50rem;
   --gutter: clamp(1rem, 3.5vw, 2.5rem);
   --gap: clamp(1.25rem, 2.2vw, 2rem);
   --header-h: 4rem;
@@ -527,7 +527,7 @@ ol[role='list'] {
 
 .prose > figure,
 .prose > .wide {
-  max-width: 50rem;
+  max-width: 58rem;
   margin-block: 2.5em;
 }
 
@@ -554,11 +554,6 @@ ol[role='list'] {
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 0.28s;
-  animation-timing-function: var(--ease);
-}
-
-::view-transition-group(*) {
-  animation-duration: 0.45s;
   animation-timing-function: var(--ease);
 }
 

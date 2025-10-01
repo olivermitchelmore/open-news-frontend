@@ -8,7 +8,6 @@ interface Props {
   widths?: number[];
   ratio?: string;
   eager?: boolean;
-  transitionName?: string;
   class?: string;
 }
 
@@ -18,9 +17,11 @@ const {
   widths = [400, 640, 960, 1280, 1600],
   ratio = '3 / 2',
   eager = false,
-  transitionName,
   class: className,
 } = Astro.props;
+
+// AVIF takes seconds per image to encode, and the dev server encodes on every request
+const formats = import.meta.env.DEV ? (['webp'] as const) : (['avif'] as const);
 ---
 
 <div class:list={['media', className]} style={`--ratio: ${ratio}`}>
@@ -32,13 +33,12 @@ const {
         inferSize
         widths={widths}
         sizes={sizes}
-        formats={['avif']}
+        formats={[...formats]}
         fallbackFormat="webp"
         quality={55}
         loading={eager ? 'eager' : 'lazy'}
         fetchpriority={eager ? 'high' : 'auto'}
         decoding={eager ? 'sync' : 'async'}
-        style={transitionName ? `view-transition-name: ${transitionName}` : undefined}
       />
     ) : (
       <div class="placeholder" aria-hidden="true">
