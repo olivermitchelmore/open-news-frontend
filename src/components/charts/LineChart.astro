@@ -1,0 +1,245 @@
+---
+import ChartFrame from './ChartFrame.astro';
+import { formatValue, niceMax, ticks, type ValueFormat } from './scale';
+
+interface Datum {
+  label: string;
+  value: number;
+}
+
+interface Props extends ValueFormat {
+  title: string;
+  subtitle?: string;
+  source?: string;
+  data: Datum[];
+  max?: number;
+}
+
+const { title, subtitle, source, data, max, ...format } = Astro.props;
+const top = max ?? niceMax(Math.max(...data.map((d) => d.value)));
+const yTicks = ticks(top);
+const last = data.length - 1;
+
+const x = (i: number) => (last === 0 ? 50 : (i / last) * 100);
+const y = (v: number) => 100 - (v / top) * 100;
+
+const points = data.map((d, i) => [x(i), y(d.value)] as const);
+const line = points.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(2)} ${py.toFixed(2)}`).join(' ');
+const area = `${line} L100 100 L0 100 Z`;
+
+const labelEvery = Math.ceil(data.length / 6);
+const xLabels = data
+  .map((d, i) => ({ label: d.label, i }))
+  .filter(({ i }) => i === 0 || i === last || (i % labelEvery === 0 && last - i >= labelEvery / 2));
+const slot = last === 0 ? 100 : 100 / last;
+const end = data[last];
+---
+
+<ChartFrame title={title} subtitle={subtitle} source={source} data={data.map((d) => [d.label, formatValue(d.value, format)])}>
+  <div class="line-chart" aria-hidden="true">
+    <div class="area">
+      {
+        yTicks.map((t) => (
+          <div class="grid" style={`bottom: ${(t / top) * 100}%`}>
+            <span>{formatValue(t, { ...format, suffix: '' })}</span>
+          </div>
+        ))
+      }
+
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <path class="fill" d={area} />
+        <path class="stroke" d={line} />
+      </svg>
+
+      {
+        data.map((d, i) => (
+          <span class="hit" style={`left: ${x(i) - slot / 2}%; width: ${slot}%; --x: ${x(i)}%`}>
+            <span class="cross" />
+            <span class="point" style={`bottom: ${100 - y(d.value)}%`} />
+            <span class:list={['tip', { flip: x(i) > 70 }]} style={`bottom: ${100 - y(d.value)}%`}>
+              <span class="tip-label">{d.label}</span>
+              <strong>{formatValue(d.value, format)}</strong>
+            </span>
+          </span>
+        ))
+      }
+
+      <span class="end" style={`left: ${x(last)}%; bottom: ${100 - y(end.value)}%`} />
+      <span class="end-label" style={`bottom: ${100 - y(end.value)}%`}>
+        {formatValue(end.value, format)}
+      </span>
+    </div>
+
+    <div class="x-axis">
+      {
+        xLabels.map(({ label, i }) => (
+          <span class:list={{ first: i === 0, last: i === last }} style={`left: ${x(i)}%`}>
+            {label}
+          </span>
+        ))
+      }
+    </div>
+  </div>
+</ChartFrame>
+
+<style>
+  .line-chart {
+    --plot-h: clamp(13rem, 36vw, 20rem);
+    padding-left: 2.5rem;
+    padding-right: 4rem;
+  }
+
+  .area {
+    position: relative;
+    height: var(--plot-h);
+  }
+
+  .grid {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--chart-grid);
+  }
+
+  .grid:first-child {
+    border-top-color: var(--ink-3);
+  }
+
+  .grid span {
+    position: absolute;
+    right: calc(100% + 0.625rem);
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+
+  svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .fill {
+    fill: var(--chart-1);
+    opacity: 0.1;
+  }
+
+  .stroke {
+    fill: none;
+    stroke: var(--chart-1);
+    stroke-width: 2px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .end,
+  .point {
+    position: absolute;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    background: var(--chart-1);
+    box-shadow: 0 0 0 2px var(--bg);
+    transform: translate(-50%, 50%);
+  }
+
+  .end-label {
+    position: absolute;
+    left: calc(100% + 0.75rem);
+    transform: translateY(50%);
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .hit {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+  }
+
+  .cross,
+  .point,
+  .tip {
+    opacity: 0;
+    transition: opacity 0.15s var(--ease);
+    pointer-events: none;
+  }
+
+  .cross {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    border-left: 1px solid var(--ink-3);
+  }
+
+  .point {
+    left: 50%;
+  }
+
+  .tip {
+    position: absolute;
+    left: calc(50% + 0.75rem);
+    display: grid;
+    gap: 0.125rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--bg);
+    box-shadow: var(--shadow);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    transform: translateY(50%);
+  }
+
+  .tip.flip {
+    left: auto;
+    right: calc(50% + 0.75rem);
+  }
+
+  .tip-label {
+    color: var(--ink-3);
+  }
+
+  .tip strong {
+    font-size: 0.9375rem;
+    font-weight: 650;
+    color: var(--ink);
+  }
+
+  .hit:hover .cross,
+  .hit:hover .point,
+  .hit:hover .tip {
+    opacity: 1;
+  }
+
+  .x-axis {
+    position: relative;
+    height: 1.75rem;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--ink-3);
+  }
+
+  .x-axis span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+
+  .x-axis .first {
+    transform: none;
+  }
+
+  .x-axis .last {
+    transform: translateX(-100%);
+  }
+</style>

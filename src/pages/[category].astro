@@ -1,0 +1,191 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+import SectionHeading from '../components/SectionHeading.astro';
+import { categories, type Category } from '../lib/categories';
+import { getArticlesByCategory } from '../lib/articles';
+
+export function getStaticPaths() {
+  return categories.map((category) => ({ params: { category: category.slug }, props: { category } }));
+}
+
+interface Props {
+  category: Category;
+}
+
+const { category } = Astro.props;
+const [lead, ...rest] = await getArticlesByCategory(category.slug);
+const grid = rest.slice(0, 6);
+const archive = rest.slice(6);
+const others = categories.filter((c) => c.slug !== category.slug);
+---
+
+<BaseLayout title={category.name} description={category.description} section={category.slug}>
+  <header class="container masthead">
+    <p class="kicker">Section</p>
+    <h1>{category.name}</h1>
+    <p class="description">{category.description}</p>
+  </header>
+
+  {
+    lead ? (
+      <>
+        <section class="container" aria-label={`Top ${category.name.toLowerCase()} story`}>
+          <div class="lead">
+            <ArticleCard article={lead} variant="feature" eager as="h2" />
+          </div>
+        </section>
+
+        {grid.length > 0 && (
+          <section class="container stories" aria-labelledby="latest-heading">
+            <SectionHeading id="latest-heading" title={`Latest in ${category.name}`} />
+            <div class="grid">
+              {grid.map((article) => (
+                <ArticleCard article={article} variant="standard" description />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {archive.length > 0 && (
+          <section class="container stories" aria-labelledby="archive-heading">
+            <SectionHeading id="archive-heading" title="Earlier" />
+            <ul class="archive" role="list">
+              {archive.map((article) => (
+                <li>
+                  <ArticleCard article={article} variant="compact" />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </>
+    ) : (
+      <section class="container">
+        <div class="empty">
+          <p class="empty-title">Nothing here yet.</p>
+          <p>New {category.name.toLowerCase()} stories will appear here as soon as they are published.</p>
+          <a class="button" href="/">Go to the front page</a>
+        </div>
+      </section>
+    )
+  }
+
+  <nav class="container explore" aria-label="Other sections">
+    <p class="kicker">Explore</p>
+    <ul role="list">
+      {
+        others.map((c) => (
+          <li>
+            <a href={`/${c.slug}/`}>{c.name}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+</BaseLayout>
+
+<style>
+  .masthead {
+    padding-block: clamp(2.5rem, 7vw, 5.5rem) clamp(2rem, 4vw, 3rem);
+  }
+
+  h1 {
+    margin-top: 0.75rem;
+    font-size: var(--step-6);
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: -0.045em;
+  }
+
+  .description {
+    max-width: 38ch;
+    margin-top: 1.25rem;
+    font-family: var(--font-serif);
+    font-size: var(--step-2);
+    line-height: 1.4;
+    color: var(--ink-2);
+  }
+
+  .lead {
+    padding-top: clamp(2rem, 4vw, 3rem);
+    border-top: 1px solid var(--rule);
+  }
+
+  .stories {
+    margin-top: clamp(3.5rem, 6vw, 5rem);
+  }
+
+  .grid {
+    display: grid;
+    gap: 3rem var(--gap);
+  }
+
+  .archive {
+    display: grid;
+    gap: 0 var(--gap);
+  }
+
+  .archive li {
+    padding-block: 1.25rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .empty {
+    display: grid;
+    justify-items: start;
+    gap: 1rem;
+    padding-block: 3rem;
+    border-top: 1px solid var(--rule);
+    color: var(--ink-2);
+  }
+
+  .empty-title {
+    font-family: var(--font-serif);
+    font-size: var(--step-4);
+    color: var(--ink);
+  }
+
+  .explore {
+    margin-top: clamp(4rem, 8vw, 6rem);
+  }
+
+  .explore ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .explore a {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition:
+      border-color 0.2s var(--ease),
+      background-color 0.2s var(--ease),
+      color 0.2s var(--ease);
+  }
+
+  .explore a:hover {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  @media (min-width: 700px) {
+    .grid,
+    .archive {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>

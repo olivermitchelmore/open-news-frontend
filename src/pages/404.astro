@@ -1,0 +1,121 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { categories } from '../lib/categories';
+---
+
+<BaseLayout title="Page not found" description="The page you were looking for could not be found.">
+  <section class="container not-found">
+    <p class="code" aria-hidden="true">404</p>
+    <div class="copy">
+      <p class="kicker">Page not found</p>
+      <h1>This story has moved, or it never ran.</h1>
+      <p class="lede">The link may be broken or the page may have been removed. Try a search, or pick up where you left off.</p>
+
+      <form class="search" action="/search/" method="get" role="search">
+        <label class="visually-hidden" for="nf-q">Search stories</label>
+        <input id="nf-q" name="q" type="search" placeholder="Search Open News" autocomplete="off" />
+        <button class="button" type="submit">
+          <Icon name="search" size={18} />
+          Search
+        </button>
+      </form>
+
+      <ul class="sections" role="list">
+        <li><a href="/">Front page</a></li>
+        {categories.map((c) => <li><a href={`/${c.slug}/`}>{c.name}</a></li>)}
+      </ul>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: grid;
+    gap: 2rem var(--gap);
+    align-items: center;
+    padding-top: clamp(3rem, 8vw, 6rem);
+  }
+
+  .code {
+    font-family: var(--font-serif);
+    font-size: clamp(7rem, 4rem + 18vw, 18rem);
+    font-weight: 300;
+    line-height: 0.8;
+    letter-spacing: -0.06em;
+    color: var(--accent);
+    font-variant-numeric: lining-nums;
+  }
+
+  .copy {
+    display: grid;
+    gap: 1.25rem;
+    max-width: 36rem;
+  }
+
+  h1 {
+    font-size: var(--step-4);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  .lede {
+    font-family: var(--font-serif);
+    font-size: var(--step-1);
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+
+  .search {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .search input {
+    flex: 1;
+    min-width: 0;
+    padding: 0 1.25rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 0.9375rem;
+    transition: border-color 0.2s var(--ease);
+  }
+
+  .search input:focus {
+    outline: none;
+    border-color: var(--ink);
+  }
+
+  .sections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .sections a {
+    color: var(--ink-2);
+    text-decoration: underline;
+    text-decoration-color: var(--rule);
+    text-underline-offset: 4px;
+    transition:
+      color 0.2s var(--ease),
+      text-decoration-color 0.2s var(--ease);
+  }
+
+  .sections a:hover {
+    color: var(--ink);
+    text-decoration-color: var(--accent);
+  }
+
+  @media (min-width: 900px) {
+    .not-found {
+      grid-template-columns: auto minmax(0, 1fr);
+      column-gap: clamp(2rem, 5vw, 5rem);
+    }
+  }
+</style>

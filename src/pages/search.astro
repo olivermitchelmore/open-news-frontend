@@ -1,0 +1,435 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { categories } from '../lib/categories';
+
+const suggestions = ['Elections', 'Markets', 'Energy', 'Space', 'AI'];
+---
+
+<BaseLayout title="Search" description="Search every story published on Open News.">
+  <section class="container head">
+    <h1>Search</h1>
+    <form class="form" role="search" action="/search/" method="get" data-search-form>
+      <label class="visually-hidden" for="q">Search stories</label>
+      <div class="field">
+        <Icon name="search" size={22} />
+        <input
+          id="q"
+          name="q"
+          type="search"
+          placeholder="Stories, topics or people"
+          autocomplete="off"
+          spellcheck="false"
+          enterkeyhint="search"
+        />
+        <kbd aria-hidden="true">/</kbd>
+      </div>
+    </form>
+
+    <div class="filters" role="group" aria-label="Filter by section">
+      <button type="button" data-section="" aria-pressed="true">All</button>
+      {
+        categories.map((c) => (
+          <button type="button" data-section={c.slug} aria-pressed="false">
+            {c.name}
+          </button>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="container results" aria-label="Results">
+    <p class="status" data-status aria-live="polite"></p>
+
+    <div class="suggestions" data-suggestions>
+      <p class="kicker">Try searching for</p>
+      <ul role="list">
+        {
+          suggestions.map((term) => (
+            <li>
+              <button type="button" data-suggest={term}>
+                {term}
+              </button>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <ol class="list" role="list" data-results></ol>
+
+    <template data-result-template>
+      <li class="card result">
+        <div class="result-body">
+          <p class="kicker"></p>
+          <h2><a class="headline-link"></a></h2>
+          <p class="result-description"></p>
+          <p class="meta"><span class="result-author"></span><time></time></p>
+        </div>
+        <img class="result-image" alt="" width="240" height="160" loading="lazy" decoding="async" />
+      </li>
+    </template>
+
+    <noscript>
+      <p class="status">Search needs JavaScript. You can still browse every story by section.</p>
+    </noscript>
+  </section>
+</BaseLayout>
+
+<script>
+  interface Entry {
+    slug: string;
+    title: string;
+    description: string;
+    section: string;
+    sectionName: string;
+    author: string;
+    date: string;
+    image: string | null;
+  }
+
+  const form = document.querySelector<HTMLFormElement>('[data-search-form]')!;
+  const input = form.querySelector<HTMLInputElement>('input')!;
+  const list = document.querySelector<HTMLOListElement>('[data-results]')!;
+  const status = document.querySelector<HTMLElement>('[data-status]')!;
+  const suggestions = document.querySelector<HTMLElement>('[data-suggestions]')!;
+  const template = document.querySelector<HTMLTemplateElement>('[data-result-template]')!;
+  const filters = [...document.querySelectorAll<HTMLButtonElement>('[data-section]')];
+
+  const dateFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const normalise = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '');
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  let index: Promise<Entry[]> | undefined;
+  const params = new URLSearchParams(location.search);
+  let section = params.get('section') ?? '';
+  input.value = params.get('q') ?? '';
+
+  function load() {
+    index ??= fetch('/search.json').then((res) => res.json());
+    return index;
+  }
+
+  function score(entry: Entry, patterns: RegExp[]) {
+    const title = normalise(entry.title);
+    const description = normalise(entry.description);
+    const other = normalise(`${entry.sectionName} ${entry.author}`);
+    let total = 0;
+
+    for (const pattern of patterns) {
+      const points = (pattern.test(title) ? 5 : 0) + (pattern.test(description) ? 2 : 0) + (pattern.test(other) ? 1 : 0);
+      if (!points) return 0;
+      total += points;
+    }
+    return total;
+  }
+
+  function highlight(target: HTMLElement, text: string, terms: string[]) {
+    target.replaceChildren();
+    if (!terms.length) {
+      target.textContent = text;
+      return;
+    }
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${terms.map(escape).join('|')})`, 'giu');
+    for (const part of text.split(pattern)) {
+      if (!part) continue;
+      if (terms.includes(normalise(part))) {
+        const mark = document.createElement('mark');
+        mark.textContent = part;
+        target.append(mark);
+      } else {
+        target.append(part);
+      }
+    }
+  }
+
+  function renderEntry(entry: Entry, terms: string[]) {
+    const item = template.content.firstElementChild!.cloneNode(true) as HTMLLIElement;
+    const link = item.querySelector('a')!;
+    const image = item.querySelector('img')!;
+    const time = item.querySelector('time')!;
+
+    item.querySelector('.kicker')!.textContent = entry.sectionName;
+    link.href = `/article/${entry.slug}/`;
+    highlight(link, entry.title, terms);
+    item.querySelector('.result-description')!.textContent = entry.description;
+    item.querySelector('.result-author')!.textContent = entry.author;
+    time.dateTime = entry.date;
+    time.textContent = dateFormat.format(new Date(entry.date));
+
+    if (entry.image) image.src = entry.image;
+    else image.remove();
+
+    return item;
+  }
+
+  async function update() {
+    const query = input.value.trim();
+    const terms = normalise(query).split(/\s+/).filter(Boolean);
+
+    const url = new URL(location.href);
+    query ? url.searchParams.set('q', query) : url.searchParams.delete('q');
+    section ? url.searchParams.set('section', section) : url.searchParams.delete('section');
+    history.replaceState(null, '', url);
+
+    filters.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.section === section)));
+
+    if (!terms.length && !section) {
+      list.replaceChildren();
+      status.textContent = '';
+      suggestions.hidden = false;
+      return;
+    }
+
+    const entries = await load();
+    const patterns = terms.map((term) => new RegExp(`(?<![\\p{L}\\p{N}])${escape(term)}`, 'u'));
+    const results = entries
+      .filter((entry) => !section || entry.section === section)
+      .map((entry) => ({ entry, score: patterns.length ? score(entry, patterns) : 1 }))
+      .filter((result) => result.score > 0)
+      .sort((a, b) => b.score - a.score || b.entry.date.localeCompare(a.entry.date));
+
+    suggestions.hidden = results.length > 0;
+    list.replaceChildren(...results.map(({ entry }) => renderEntry(entry, terms)));
+
+    const scope = section ? ` in ${filters.find((f) => f.dataset.section === section)?.textContent?.trim()}` : '';
+    const subject = query ? ` for “${query}”` : '';
+    status.textContent = results.length
+      ? `${results.length} ${results.length === 1 ? 'story' : 'stories'}${subject}${scope}`
+      : `No stories${subject}${scope}. Try a broader search.`;
+  }
+
+  let timer: number | undefined;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(update, 120);
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    update();
+    input.blur();
+  });
+
+  filters.forEach((button) =>
+    button.addEventListener('click', () => {
+      section = button.dataset.section ?? '';
+      update();
+    }),
+  );
+
+  document.querySelectorAll<HTMLButtonElement>('[data-suggest]').forEach((button) =>
+    button.addEventListener('click', () => {
+      input.value = button.dataset.suggest ?? '';
+      update();
+    }),
+  );
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === '/' && document.activeElement !== input) {
+      event.preventDefault();
+      input.focus();
+    }
+  });
+
+  input.addEventListener('focus', load, { once: true });
+  if (!input.value) input.focus();
+  update();
+</script>
+
+<style>
+  .head {
+    padding-top: clamp(2.5rem, 6vw, 4.5rem);
+  }
+
+  h1 {
+    font-size: var(--step-6);
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: -0.045em;
+  }
+
+  .form {
+    margin-top: clamp(1.5rem, 4vw, 2.5rem);
+  }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--rule-strong);
+    color: var(--ink-3);
+    transition: border-color 0.2s var(--ease);
+  }
+
+  .field:focus-within {
+    border-color: var(--accent);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: var(--font-serif);
+    font-size: var(--step-4);
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    outline: none;
+  }
+
+  input::placeholder {
+    color: var(--ink-3);
+    opacity: 0.7;
+  }
+
+  input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  kbd {
+    display: none;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    color: var(--ink-3);
+  }
+
+  .filters {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+    margin-inline: calc(var(--gutter) * -1);
+    padding-inline: var(--gutter);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .filters button,
+  .suggestions button {
+    flex: none;
+    padding: 0.4375rem 0.875rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: transparent;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--ink-2);
+    transition:
+      border-color 0.2s var(--ease),
+      background-color 0.2s var(--ease),
+      color 0.2s var(--ease);
+  }
+
+  .filters button:hover,
+  .suggestions button:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+
+  .filters button[aria-pressed='true'] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  .results {
+    margin-top: clamp(2rem, 4vw, 3rem);
+  }
+
+  .status {
+    padding-bottom: 1rem;
+    font-size: 0.875rem;
+    color: var(--ink-3);
+  }
+
+  .status:empty {
+    display: none;
+  }
+
+  .suggestions ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .suggestions[hidden] {
+    display: none;
+  }
+
+  .list {
+    border-top: 1px solid var(--rule);
+  }
+
+  .list:empty {
+    border: 0;
+  }
+
+  .result {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.25rem;
+    padding-block: 1.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .result-body {
+    display: grid;
+    gap: 0.5rem;
+    align-content: start;
+    max-width: 44rem;
+  }
+
+  .result h2 {
+    font-size: var(--step-2);
+  }
+
+  .result :global(mark) {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: inherit;
+    border-radius: 2px;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  .result-description {
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    line-height: 1.45;
+    color: var(--ink-2);
+  }
+
+  .result-image {
+    width: 6rem;
+    height: 6rem;
+    border-radius: var(--radius);
+    object-fit: cover;
+    background: var(--surface);
+  }
+
+  @media (min-width: 700px) {
+    kbd {
+      display: inline-block;
+    }
+
+    .filters {
+      flex-wrap: wrap;
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+
+    .result-image {
+      width: 10rem;
+      height: 6.75rem;
+    }
+  }
+</style>

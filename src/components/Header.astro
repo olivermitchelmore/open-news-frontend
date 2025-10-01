@@ -1,0 +1,219 @@
+---
+import Icon from './Icon.astro';
+import Logo from './Logo.astro';
+import { categories, type CategorySlug } from '../lib/categories';
+
+interface Props {
+  section?: CategorySlug;
+}
+
+const { section } = Astro.props;
+const path = Astro.url.pathname;
+---
+
+<header class="site-header">
+  <div class="container bar">
+    <a class="brand" href="/" aria-label="Open News home">
+      <Logo />
+    </a>
+
+    <nav class="nav" aria-label="Sections">
+      <ul role="list">
+        <li><a href="/" aria-current={path === '/' ? 'page' : undefined}>Home</a></li>
+        {
+          categories.map((c) => (
+            <li>
+              <a href={`/${c.slug}/`} aria-current={section === c.slug ? 'page' : undefined}>
+                {c.name}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="actions">
+      <a class="icon-button" href="/search/" aria-label="Search" aria-current={path.startsWith('/search') ? 'page' : undefined}>
+        <Icon name="search" />
+      </a>
+      <button class="icon-button theme-toggle" type="button" aria-label="Toggle dark mode" data-theme-toggle>
+        <Icon name="moon" class="moon" />
+        <Icon name="sun" class="sun" />
+      </button>
+    </div>
+  </div>
+</header>
+
+<script is:inline>
+  document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
+    const root = document.documentElement;
+    const isDark = root.dataset.theme
+      ? root.dataset.theme === 'dark'
+      : matchMedia('(prefers-color-scheme: dark)').matches;
+    const next = isDark ? 'light' : 'dark';
+    root.dataset.theme = next;
+    try {
+      localStorage.setItem('theme', next);
+    } catch {}
+  });
+</script>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    border-bottom: 1px solid var(--rule);
+    -webkit-backdrop-filter: saturate(1.6) blur(14px);
+    backdrop-filter: saturate(1.6) blur(14px);
+  }
+
+  .bar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: 'brand . actions' 'nav nav nav';
+    align-items: center;
+    column-gap: 2rem;
+  }
+
+  .brand {
+    grid-area: brand;
+    display: flex;
+    align-items: center;
+    height: var(--header-h);
+    color: var(--ink);
+  }
+
+  .nav {
+    grid-area: nav;
+    margin-inline: calc(var(--gutter) * -1);
+    border-top: 1px solid var(--rule);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--gutter), #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 var(--gutter), #000 calc(100% - 2.5rem), transparent);
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav ul {
+    display: flex;
+    gap: 1.5rem;
+    width: max-content;
+    padding-inline: var(--gutter);
+  }
+
+  .nav a {
+    position: relative;
+    display: block;
+    padding-block: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--ink-2);
+    white-space: nowrap;
+    transition: color 0.2s var(--ease);
+  }
+
+  .nav a::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s var(--ease);
+  }
+
+  .nav a:hover,
+  .nav a[aria-current='page'] {
+    color: var(--ink);
+  }
+
+  .nav a:hover::after,
+  .nav a[aria-current='page']::after {
+    transform: scaleX(1);
+  }
+
+  .actions {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-right: -0.5rem;
+  }
+
+  .icon-button {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-2);
+    transition:
+      background-color 0.2s var(--ease),
+      color 0.2s var(--ease);
+  }
+
+  .icon-button:hover,
+  .icon-button[aria-current='page'] {
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .theme-toggle :global(.sun) {
+    display: none;
+  }
+
+  :global(:root[data-theme='dark']) .theme-toggle :global(.sun) {
+    display: block;
+  }
+
+  :global(:root[data-theme='dark']) .theme-toggle :global(.moon) {
+    display: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme='light'])) .theme-toggle :global(.sun) {
+      display: block;
+    }
+
+    :global(:root:not([data-theme='light'])) .theme-toggle :global(.moon) {
+      display: none;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .bar {
+      grid-template-columns: auto 1fr auto;
+      grid-template-areas: 'brand nav actions';
+    }
+
+    .nav {
+      margin: 0;
+      border: 0;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+
+    .nav ul {
+      padding: 0;
+      gap: clamp(1rem, 1.6vw, 1.75rem);
+    }
+
+    .nav a {
+      display: flex;
+      align-items: center;
+      height: var(--header-h);
+      padding: 0;
+    }
+  }
+</style>

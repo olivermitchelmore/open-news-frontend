@@ -1,0 +1,346 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
+import Media from '../../components/Media.astro';
+import Icon from '../../components/Icon.astro';
+import { getArticles, getRelated, toArticle, type ArticleEntry } from '../../lib/articles';
+import { formatDate, formatTime, initials } from '../../lib/format';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('articles');
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+interface Props {
+  entry: ArticleEntry;
+}
+
+const { entry } = Astro.props;
+const article = toArticle(entry);
+const { Content } = await render(entry);
+const { category } = article;
+
+const related = await getRelated(article, 3);
+const shown = new Set([article.slug, ...related.map((a) => a.slug)]);
+const latest = (await getArticles()).filter((a) => !shown.has(a.slug)).slice(0, 4);
+
+const url = new URL(Astro.url.pathname, Astro.site).href;
+const share = [
+  { name: 'x', label: 'Share on X', href: `https://x.com/intent/post?url=${encodeURIComponent(url)}&text=${encodeURIComponent(article.title)}` },
+  { name: 'linkedin', label: 'Share on LinkedIn', href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}` },
+  { name: 'mail', label: 'Share by email', href: `mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(url)}` },
+] as const;
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'NewsArticle',
+  headline: article.title,
+  description: article.description,
+  image: article.image ? [article.image.src] : undefined,
+  datePublished: article.publishDate.toISOString(),
+  dateModified: (article.updatedDate ?? article.publishDate).toISOString(),
+  articleSection: category.name,
+  author: [{ '@type': 'Person', name: article.author }],
+  publisher: { '@type': 'Organization', name: 'Open News', url: Astro.site?.href },
+  mainEntityOfPage: url,
+};
+---
+
+<BaseLayout
+  title={article.title}
+  description={article.description}
+  image={article.image?.src}
+  type="article"
+  section={category.slug}
+>
+  <Fragment slot="head">
+    <meta property="article:published_time" content={article.publishDate.toISOString()} />
+    {article.updatedDate && <meta property="article:modified_time" content={article.updatedDate.toISOString()} />}
+    <meta property="article:section" content={category.name} />
+    <meta property="article:author" content={article.author} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
+  </Fragment>
+
+  <div class="progress" aria-hidden="true"></div>
+
+  <article class="story">
+    <header class="container story-header">
+      <p class="kicker">
+        <a href={`/${category.slug}/`}>{category.name}</a>
+        {article.label && <span class="kicker-label">{article.label}</span>}
+      </p>
+      <h1>{article.title}</h1>
+      <p class="standfirst">{article.description}</p>
+
+      <div class="byline">
+        <span class="avatar" aria-hidden="true">{initials(article.author)}</span>
+        <div class="byline-text">
+          <p class="author">By <strong>{article.author}</strong></p>
+          <p class="meta">
+            <time datetime={article.publishDate.toISOString()}>
+              {formatDate(article.publishDate)}, {formatTime(article.publishDate)}
+            </time>
+            {
+              article.updatedDate && (
+                <span>
+                  Updated <time datetime={article.updatedDate.toISOString()}>{formatTime(article.updatedDate)}</time>
+                </span>
+              )
+            }
+            <span>{article.readingTime} min read</span>
+          </p>
+        </div>
+        <ul class="share no-print" role="list" aria-label="Share this story">
+          {
+            share.map((s) => (
+              <li>
+                <a href={s.href} aria-label={s.label} target="_blank" rel="noopener noreferrer">
+                  <Icon name={s.name} size={17} />
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </header>
+
+    {
+      article.image && (
+        <figure class="container hero">
+          <Media
+            image={article.image}
+            eager
+            ratio="16 / 9"
+            sizes="(min-width: 1180px) 1100px, 100vw"
+            widths={[640, 960, 1280, 1600]}
+            transitionName={`media-${article.slug}`}
+          />
+          {(article.image.caption || article.image.credit) && (
+            <figcaption>
+              {article.image.caption}
+              {article.image.credit && <span class="credit">Photograph: {article.image.credit}</span>}
+            </figcaption>
+          )}
+        </figure>
+      )
+    }
+
+    <div class="container body">
+      <div class="prose">
+        <Content />
+      </div>
+
+      <footer class="story-footer">
+        <a class="button button-ghost" href={`/${category.slug}/`}>
+          More {category.name.toLowerCase()} coverage
+          <Icon name="arrow" size={16} />
+        </a>
+      </footer>
+    </div>
+  </article>
+
+  <aside class="container more no-print" aria-label="Further reading">
+    <div class="related">
+      <SectionHeading title="Read next" />
+      <div class="related-grid">
+        {related.map((a) => <ArticleCard article={a} variant="standard" />)}
+      </div>
+    </div>
+
+    {
+      latest.length > 0 && (
+        <div class="latest">
+          <SectionHeading title="Latest" href="/" linkLabel="Front page" />
+          <ul role="list">
+            {latest.map((a) => (
+              <li>
+                <ArticleCard article={a} variant="compact" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
+    }
+  </aside>
+</BaseLayout>
+
+<style>
+  .progress {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 60;
+    height: 3px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .progress {
+      animation: progress linear both;
+      animation-timeline: scroll(root);
+    }
+  }
+
+  @keyframes progress {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .story-header {
+    max-width: calc(var(--measure) + var(--gutter) * 2);
+    padding-top: clamp(2rem, 5vw, 4rem);
+  }
+
+  .story-header .kicker a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  h1 {
+    margin-top: 1rem;
+    font-size: var(--step-5);
+    font-weight: 500;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+  }
+
+  .standfirst {
+    margin-top: 1.25rem;
+    font-family: var(--font-serif);
+    font-size: var(--step-2);
+    line-height: 1.4;
+    color: var(--ink-2);
+  }
+
+  .byline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-block: 1.25rem;
+    border-block: 1px solid var(--rule);
+  }
+
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    flex: none;
+  }
+
+  .byline-text {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .author {
+    font-size: 0.9375rem;
+  }
+
+  .author strong {
+    font-weight: 600;
+  }
+
+  .share {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .share a {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    color: var(--ink-2);
+    transition:
+      border-color 0.2s var(--ease),
+      color 0.2s var(--ease),
+      background-color 0.2s var(--ease);
+  }
+
+  .share a:hover {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  .hero {
+    max-width: calc(70rem + var(--gutter) * 2);
+    margin-top: clamp(2rem, 4vw, 3rem);
+  }
+
+  figcaption {
+    max-width: var(--measure);
+    margin: 0.875rem auto 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--ink-3);
+  }
+
+  .credit {
+    margin-left: 0.5rem;
+    color: var(--ink-3);
+    opacity: 0.8;
+  }
+
+  .body {
+    padding-top: clamp(2rem, 4vw, 3rem);
+  }
+
+  .story-footer {
+    max-width: var(--measure);
+    margin: 3.5rem auto 0;
+    padding-top: 2rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .more {
+    display: grid;
+    gap: clamp(3.5rem, 6vw, 5rem) calc(var(--gap) * 2);
+    margin-top: clamp(4rem, 8vw, 6rem);
+  }
+
+  .related-grid {
+    display: grid;
+    gap: 2.5rem var(--gap);
+  }
+
+  .latest li {
+    padding-block: 1.25rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .latest li:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  @media (min-width: 700px) {
+    .related-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .more {
+      grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    }
+  }
+</style>

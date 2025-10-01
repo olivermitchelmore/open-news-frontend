@@ -1,0 +1,138 @@
+---
+import ArticleCard from './ArticleCard.astro';
+import SectionHeading from './SectionHeading.astro';
+import type { Article } from '../lib/articles';
+import type { Category } from '../lib/categories';
+
+interface Props {
+  category: Category;
+  articles: Article[];
+  layout?: 'split' | 'split-reverse' | 'row';
+}
+
+const { category, articles, layout = 'split' } = Astro.props;
+const [primary, ...rest] = articles;
+const headingId = `section-${category.slug}`;
+---
+
+{
+  primary && (
+    <section class="container block" aria-labelledby={headingId}>
+      <SectionHeading id={headingId} title={category.name} href={`/${category.slug}/`} linkLabel="More" />
+      {layout === 'row' ? (
+        <div class="row" style={`--cols: ${Math.min(articles.length, 4)}`}>
+          {articles.map((article) => (
+            <ArticleCard article={article} variant="standard" />
+          ))}
+        </div>
+      ) : (
+        <div class:list={['split', { reverse: layout === 'split-reverse' }]}>
+          <div class="primary">
+            <ArticleCard
+              article={primary}
+              variant="standard"
+              description
+              ratio="16 / 10"
+              sizes="(min-width: 1100px) 760px, (min-width: 760px) 58vw, 100vw"
+            />
+          </div>
+          {rest.length > 0 && (
+            <ul class="stack" role="list">
+              {rest.map((article) => (
+                <li>
+                  <ArticleCard article={article} variant="compact" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+<style>
+  .block {
+    margin-top: clamp(3.5rem, 6vw, 5.5rem);
+  }
+
+  .split {
+    display: grid;
+    gap: var(--gap);
+  }
+
+  .primary :global(.card-title) {
+    font-size: var(--step-4);
+    font-weight: 500;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .stack {
+    display: grid;
+    align-content: start;
+  }
+
+  .stack li {
+    padding-block: 1.25rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .stack li:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .row {
+    display: grid;
+    gap: 2.5rem var(--gap);
+  }
+
+  @media (min-width: 760px) {
+    .split {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+      column-gap: calc(var(--gap) * 2);
+    }
+
+    .split.reverse .primary {
+      order: 2;
+    }
+
+    .stack {
+      position: relative;
+    }
+
+    .stack::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--gap) * -1);
+      border-left: 1px solid var(--rule);
+    }
+
+    .reverse .stack::before {
+      left: auto;
+      right: calc(var(--gap) * -1);
+    }
+
+    .row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .row {
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    }
+
+    .row > :global(.card:not(:first-child))::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--gap) / -2);
+      border-left: 1px solid var(--rule);
+    }
+  }
+</style>

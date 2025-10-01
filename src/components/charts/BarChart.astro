@@ -1,0 +1,113 @@
+---
+import ChartFrame from './ChartFrame.astro';
+import { formatValue, niceMax, type ValueFormat } from './scale';
+
+interface Datum {
+  label: string;
+  value: number;
+}
+
+interface Props extends ValueFormat {
+  title: string;
+  subtitle?: string;
+  source?: string;
+  data: Datum[];
+  highlight?: string;
+  max?: number;
+}
+
+const { title, subtitle, source, data, highlight, max, ...format } = Astro.props;
+const top = max ?? niceMax(Math.max(...data.map((d) => d.value)));
+---
+
+<ChartFrame title={title} subtitle={subtitle} source={source} data={data.map((d) => [d.label, formatValue(d.value, format)])}>
+  <ol class:list={['bars', { emphasis: highlight }]} role="list" aria-hidden="true">
+    {
+      data.map((d) => (
+        <li class:list={{ active: d.label === highlight }} style={`--v: ${Math.max(d.value / top, 0.004)}`}>
+          <span class="label">{d.label}</span>
+          <span class="track">
+            <span class="bar" />
+            <span class="value">{formatValue(d.value, format)}</span>
+          </span>
+        </li>
+      ))
+    }
+  </ol>
+</ChartFrame>
+
+<style>
+  .bars {
+    display: grid;
+    gap: 0.875rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 22%) minmax(0, 1fr);
+    align-items: center;
+    gap: 1rem;
+    transition: opacity 0.2s var(--ease);
+  }
+
+  .label {
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    color: var(--ink-2);
+  }
+
+  .track {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .bar {
+    display: block;
+    flex: none;
+    width: calc(var(--v) * (100% - 3.75rem));
+    height: 1rem;
+    border-radius: 0 4px 4px 0;
+    background: var(--chart-1);
+    transform-origin: left;
+  }
+
+  .emphasis .bar {
+    background: var(--chart-muted);
+  }
+
+  .emphasis .active .bar {
+    background: var(--chart-1);
+  }
+
+  .value {
+    flex: none;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bars:hover li:not(:hover) {
+    opacity: 0.45;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .bar {
+        animation: grow linear both;
+        animation-timeline: view();
+        animation-range: entry 10% cover 35%;
+      }
+    }
+  }
+
+  @keyframes grow {
+    from {
+      transform: scaleX(0);
+    }
+  }
+</style>

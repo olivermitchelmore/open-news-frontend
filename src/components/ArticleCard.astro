@@ -1,0 +1,185 @@
+---
+import Media from './Media.astro';
+import type { Article } from '../lib/articles';
+import { formatDate } from '../lib/format';
+
+type Variant = 'lead' | 'feature' | 'standard' | 'compact' | 'text';
+
+interface Props {
+  article: Article;
+  variant?: Variant;
+  eager?: boolean;
+  description?: boolean;
+  sizes?: string;
+  ratio?: string;
+  as?: 'h2' | 'h3';
+}
+
+const {
+  article,
+  variant = 'standard',
+  eager = false,
+  description = variant === 'lead' || variant === 'feature',
+  as: Heading = 'h3',
+} = Astro.props;
+
+const defaultSizes: Record<Variant, string> = {
+  lead: '(min-width: 1100px) 760px, (min-width: 760px) 55vw, 100vw',
+  feature: '(min-width: 1100px) 760px, (min-width: 760px) 58vw, 100vw',
+  standard: '(min-width: 1100px) 420px, (min-width: 760px) 45vw, 100vw',
+  compact: '140px',
+  text: '0px',
+};
+
+const ratios: Partial<Record<Variant, string>> = {
+  lead: '4 / 3',
+  feature: '16 / 10',
+  compact: '1 / 1',
+};
+
+const href = `/article/${article.slug}/`;
+const isLive = article.label?.toLowerCase() === 'live';
+const hasMedia = variant !== 'text';
+---
+
+<article class:list={['card', `card-${variant}`]}>
+  {
+    hasMedia && (
+      <Media
+        class="card-media"
+        image={article.image}
+        eager={eager}
+        ratio={Astro.props.ratio ?? ratios[variant]}
+        sizes={Astro.props.sizes ?? defaultSizes[variant]}
+        widths={variant === 'compact' ? [160, 280] : undefined}
+        transitionName={article.image && variant !== 'compact' ? `media-${article.slug}` : undefined}
+      />
+    )
+  }
+  <div class="card-body">
+    <p class="kicker">
+      {isLive && <span class="live-dot" />}
+      <span>{isLive ? 'Live' : article.category.name}</span>
+      {article.label && !isLive && <span class="kicker-label">{article.label}</span>}
+    </p>
+    <Heading class="card-title">
+      <a class="headline-link" href={href}>{article.title}</a>
+    </Heading>
+    {description && <p class="card-description">{article.description}</p>}
+    <p class="meta">
+      {variant === 'lead' || variant === 'feature' ? <span>{article.author}</span> : null}
+      <time datetime={article.publishDate.toISOString()}>{formatDate(article.publishDate)}</time>
+      {(variant === 'lead' || variant === 'feature') && <span>{article.readingTime} min read</span>}
+    </p>
+  </div>
+</article>
+
+<style>
+  .card {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+  }
+
+  .card-body {
+    display: grid;
+    align-content: start;
+    gap: 0.625rem;
+  }
+
+  .card-title {
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.15;
+  }
+
+  .card-description {
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    line-height: 1.45;
+    color: var(--ink-2);
+  }
+
+  .card-lead {
+    gap: 1.25rem;
+  }
+
+  .card-lead .card-title {
+    font-size: var(--step-5);
+    font-weight: 500;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+  }
+
+  .card-lead .card-description {
+    font-size: var(--step-1);
+    max-width: 34ch;
+  }
+
+  .card-lead .card-body {
+    gap: 1rem;
+  }
+
+  @media (min-width: 760px) {
+    .card-lead {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+      gap: var(--gap);
+      align-items: start;
+    }
+
+    .card-lead :global(.card-media) {
+      order: 2;
+    }
+
+    .card-lead .card-body {
+      padding-top: 0.25rem;
+    }
+  }
+
+  .card-feature .card-title {
+    font-size: var(--step-4);
+    font-weight: 500;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .card-feature .card-description {
+    font-size: var(--step-1);
+  }
+
+  @media (min-width: 760px) {
+    .card-feature {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+      gap: var(--gap);
+      align-items: center;
+    }
+  }
+
+  .card-compact {
+    grid-template-columns: minmax(0, 1fr) 5.5rem;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .card-compact :global(.card-media) {
+    order: 2;
+  }
+
+  .card-compact .card-title,
+  .card-text .card-title {
+    font-size: 1.125rem;
+    line-height: 1.22;
+  }
+
+  .card-compact .card-body,
+  .card-text .card-body {
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 1100px) {
+    .card-compact {
+      grid-template-columns: minmax(0, 1fr) 6.5rem;
+    }
+  }
+</style>

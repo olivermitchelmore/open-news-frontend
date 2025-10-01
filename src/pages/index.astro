@@ -1,0 +1,451 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+import SectionBlock from '../components/SectionBlock.astro';
+import SectionHeading from '../components/SectionHeading.astro';
+import Icon from '../components/Icon.astro';
+import { createPicker, getArticles, getMostRead, type Article } from '../lib/articles';
+import { getCategory, type CategorySlug } from '../lib/categories';
+import { formatFullDate, formatStamp } from '../lib/format';
+
+const articles = await getArticles();
+const mostRead = await getMostRead(5);
+const picker = createPicker(articles);
+const isLongRead = (a: Article) => a.label === 'The Long Read';
+const isLive = (a: Article) => a.label?.toLowerCase() === 'live';
+
+const live = articles.find(isLive);
+const lead = picker.takeOne((a) => a.featured && !isLongRead(a)) ?? picker.takeOne();
+const secondary = picker.take(3, (a) => a.featured && !isLongRead(a));
+secondary.push(...picker.take(3 - secondary.length, (a) => !isLongRead(a)));
+const longRead = picker.takeOne(isLongRead);
+
+const onFront = new Set([lead, ...secondary].map((a) => a?.slug));
+const latest = articles.filter((a) => !onFront.has(a.slug)).slice(0, 7);
+const reference = articles[0]?.publishDate ?? new Date();
+
+const section = (slug: CategorySlug, count = 4) => ({
+  category: getCategory(slug)!,
+  articles: picker.take(count, (a) => a.category.slug === slug),
+});
+
+const upper = [section('world'), section('politics')];
+const lower = [section('business'), section('technology'), section('science')];
+const duo = [section('culture', 3), section('sport', 3)];
+---
+
+<BaseLayout>
+  <h1 class="visually-hidden">Open News</h1>
+
+  <div class="container dateline">
+    <p>{formatFullDate(reference)}</p>
+    {
+      live && (
+        <a class="live" href={`/article/${live.slug}/`}>
+          <span class="live-badge">
+            <span class="live-dot" />
+            Live
+          </span>
+          <span class="live-title">{live.title}</span>
+          <Icon name="arrow" size={16} />
+        </a>
+      )
+    }
+  </div>
+
+  {
+    lead && (
+      <section class="container top" aria-label="Top stories">
+        <div class="top-main">
+          <ArticleCard article={lead} variant="lead" eager as="h2" />
+          <div class="secondary">
+            {secondary.map((article) => (
+              <ArticleCard article={article} variant="standard" />
+            ))}
+          </div>
+        </div>
+
+        <aside class="rail" aria-labelledby="latest-heading">
+          <h2 id="latest-heading" class="rail-title">
+            <span class="live-dot" />
+            Latest
+          </h2>
+          <ol role="list">
+            {latest.map((article) => (
+              <li class="card">
+                <time datetime={article.publishDate.toISOString()}>
+                  {formatStamp(article.publishDate, reference)}
+                </time>
+                <div>
+                  <p class="kicker">{article.category.name}</p>
+                  <h3>
+                    <a class="headline-link" href={`/article/${article.slug}/`}>
+                      {article.title}
+                    </a>
+                  </h3>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </aside>
+      </section>
+    )
+  }
+
+  <section class="container most-read" aria-labelledby="most-read-heading">
+    <SectionHeading id="most-read-heading" title="Most read" />
+    <ol role="list">
+      {
+        mostRead.map((article) => (
+          <li class="card">
+            <p class="kicker">{article.category.name}</p>
+            <h3>
+              <a class="headline-link" href={`/article/${article.slug}/`}>
+                {article.title}
+              </a>
+            </h3>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+
+  <SectionBlock {...upper[0]} layout="split" />
+  <SectionBlock {...upper[1]} layout="split-reverse" />
+
+  {
+    longRead && (
+      <section class="long-read" aria-label="The Long Read">
+        <div class="container">
+          <p class="long-read-label">The Long Read</p>
+          <ArticleCard article={longRead} variant="feature" as="h2" />
+        </div>
+      </section>
+    )
+  }
+
+  <SectionBlock {...lower[0]} layout="row" />
+  <SectionBlock {...lower[1]} layout="split" />
+  <SectionBlock {...lower[2]} layout="row" />
+
+  <div class="container duo">
+    {
+      duo.map(
+        ({ category, articles: [primary, ...rest] }) =>
+          primary && (
+            <section aria-labelledby={`duo-${category.slug}`}>
+              <SectionHeading id={`duo-${category.slug}`} title={category.name} href={`/${category.slug}/`} />
+              <ArticleCard
+                article={primary}
+                variant="standard"
+                description
+                ratio="16 / 9"
+                sizes="(min-width: 900px) 640px, 100vw"
+              />
+              <ul role="list" class="duo-list">
+                {rest.map((article) => (
+                  <li>
+                    <ArticleCard article={article} variant="text" />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .dateline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 2rem;
+    padding-block: 1.25rem;
+    font-size: 0.8125rem;
+    color: var(--ink-3);
+  }
+
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    max-width: 100%;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.625rem 0.25rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .live-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .live :global(svg) {
+    flex: none;
+    color: var(--accent);
+    transition: transform 0.25s var(--ease);
+  }
+
+  .live:hover .live-title {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .live:hover :global(svg) {
+    transform: translateX(3px);
+  }
+
+  .top {
+    display: grid;
+    gap: 3rem var(--gap);
+    padding-top: 0.5rem;
+  }
+
+  .top-main {
+    display: grid;
+    gap: 2.5rem;
+    min-width: 0;
+  }
+
+  .secondary {
+    display: grid;
+    gap: 2rem var(--gap);
+    padding-top: 2rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .rail-title {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding-top: 0.875rem;
+    margin-bottom: 0.5rem;
+    border-top: 2px solid var(--rule-strong);
+    font-size: var(--step-2);
+  }
+
+  .rail li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .rail li:last-child {
+    border-bottom: 0;
+  }
+
+  .rail time {
+    padding-top: 0.05rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rail h3 {
+    margin-top: 0.375rem;
+    font-size: 1.0625rem;
+    line-height: 1.25;
+  }
+
+  .most-read {
+    margin-top: clamp(3.5rem, 6vw, 5.5rem);
+  }
+
+  .most-read ol {
+    display: grid;
+    gap: 0 var(--gap);
+    counter-reset: rank;
+  }
+
+  .most-read li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+    padding-block: 1.25rem;
+    border-bottom: 1px solid var(--rule);
+    counter-increment: rank;
+  }
+
+  .most-read li::before {
+    content: counter(rank);
+    grid-row: span 2;
+    font-family: var(--font-serif);
+    font-size: 3.25rem;
+    font-weight: 300;
+    line-height: 0.8;
+    color: var(--accent);
+    font-variant-numeric: lining-nums;
+  }
+
+  .most-read h3 {
+    font-size: 1.125rem;
+    line-height: 1.22;
+  }
+
+  .long-read {
+    margin-top: clamp(4rem, 8vw, 7rem);
+    padding-block: clamp(3rem, 6vw, 5rem);
+    background: var(--inverse-bg);
+    color: var(--inverse-ink);
+    --ink: var(--inverse-ink);
+    --ink-2: var(--inverse-ink-2);
+    --ink-3: var(--inverse-ink-2);
+    --accent: var(--inverse-accent);
+    --surface: var(--inverse-surface);
+  }
+
+  .long-read-label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    font-family: var(--font-serif);
+    font-size: var(--step-3);
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .long-read-label::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--inverse-rule);
+  }
+
+  .long-read :global(.card-title) {
+    font-size: var(--step-5);
+  }
+
+  .duo {
+    display: grid;
+    gap: clamp(3.5rem, 6vw, 5.5rem) calc(var(--gap) * 2);
+    margin-top: clamp(3.5rem, 6vw, 5.5rem);
+  }
+
+  .duo-list li {
+    padding-block: 1.25rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .duo-list {
+    margin-top: 1.5rem;
+  }
+
+  @media (max-width: 639px) {
+    .secondary {
+      gap: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .secondary > :global(.card) {
+      grid-template-columns: minmax(0, 1fr) 5.5rem;
+      padding-block: 1.25rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    .secondary > :global(.card) > :global(.card-media) {
+      order: 2;
+      aspect-ratio: 1;
+    }
+
+    .secondary > :global(.card) :global(.card-title) {
+      font-size: 1.125rem;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .secondary {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .secondary > :global(.card:not(:first-child))::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--gap) / -2);
+      border-left: 1px solid var(--rule);
+    }
+
+    .most-read ol {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 900px) {
+    .duo {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .top {
+      grid-template-columns: minmax(0, 1fr) 19rem;
+      column-gap: calc(var(--gap) * 2);
+    }
+
+    .rail {
+      position: relative;
+    }
+
+    .rail::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--gap) * -1);
+      border-left: 1px solid var(--rule);
+    }
+
+    .most-read ol {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .most-read li {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto 1fr;
+      padding: 0;
+      border: 0;
+    }
+
+    .most-read li::before {
+      grid-row: auto;
+      margin-bottom: 0.5rem;
+      font-size: 4rem;
+    }
+
+    .most-read li:not(:first-child)::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--gap) / -2);
+      border-left: 1px solid var(--rule);
+    }
+  }
+</style>
